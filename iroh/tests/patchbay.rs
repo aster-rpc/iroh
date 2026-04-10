@@ -143,7 +143,7 @@ async fn switch_uplink_v4() -> Result {
             // Wait a little more and then switch wifis.
             tokio::time::sleep(Duration::from_secs(1)).await;
             info!("switch IP uplink");
-            dev.replug_iface("eth0", nat3.id()).await?;
+            dev.iface("eth0").unwrap().replug(nat3.id()).await?;
 
             // We don't assert any path changes here, because the remote stays identical,
             // and PathInfo does not contain info on local addrs. Instead, the remote
@@ -236,7 +236,7 @@ async fn switch_uplink_v6() -> Result {
                 .context("ping before switch")?;
 
             info!("switch IP uplink to v6");
-            dev.replug_iface("eth0", mobile.id()).await?;
+            dev.iface("eth0").unwrap().replug(mobile.id()).await?;
 
             // We don't assert any path changes here, because the remote stays identical,
             // and PathInfo does not contain info on local addrs. Instead, the remote
@@ -279,9 +279,11 @@ async fn change_ifaces() -> Result {
         .build()
         .await?;
     client
-        .set_link_condition("eth0", Some(LinkCondition::Mobile4G), LinkDirection::Both)
+        .iface("eth0")
+        .unwrap()
+        .set_condition(LinkCondition::Mobile4G, LinkDirection::Both)
         .await?;
-    client.link_down("eth1").await?;
+    client.iface("eth1").unwrap().link_down().await?;
 
     let timeout = Duration::from_secs(15);
     Pair::new(relay_map)
@@ -303,7 +305,7 @@ async fn change_ifaces() -> Result {
 
             // Bring up the LAN interface to the other ep.
             info!("bring up eth1");
-            dev.link_up("eth1").await?;
+            dev.iface("eth1").unwrap().link_up().await?;
 
             // Wait for a new direct path to be established. We check is_ip() explicitly
             // to avoid triggering on a transient relay fallback during the switch.
@@ -351,9 +353,9 @@ async fn link_outage_recovery() -> Result {
             let downtime = Duration::from_secs(5);
             info!("holepunched, now killing link for {downtime:?}");
             // Take the link down.
-            dev.link_down("eth0").await?;
+            dev.iface("eth0").unwrap().link_down().await?;
             tokio::time::sleep(downtime).await;
-            dev.link_up("eth0").await?;
+            dev.iface("eth0").unwrap().link_up().await?;
             info!("link restored, waiting for recovery");
 
             // After link recovery, we should be able to ping, either via relay
@@ -478,9 +480,13 @@ async fn run_degrade_level(impaired_side: Side, level: usize) -> Result<TestGuar
         Side::Client => &client,
         Side::Server => &server,
     };
-    impaired_device
-        .set_link_condition("eth0", link_condition, LinkDirection::Both)
-        .await?;
+    if let Some(condition) = link_condition {
+        impaired_device
+            .iface("eth0")
+            .unwrap()
+            .set_condition(condition, LinkDirection::Both)
+            .await?;
+    }
 
     let result = tokio::time::timeout(
         timeout * 2,
