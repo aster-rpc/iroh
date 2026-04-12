@@ -280,6 +280,12 @@ mod net_report;
 pub mod protocol;
 
 pub use endpoint::{Endpoint, RelayMode};
+/// Poll-based QUIC driver for FFI consumers with their own event loop.
+///
+/// Re-exported from [`noq::poll_driver`]. This provides a synchronous alternative to
+/// iroh's async [`Endpoint`] for use cases where the caller drives I/O directly
+/// (e.g. Go, Java, .NET bindings via a C ABI bridge).
+pub use noq::poll_driver;
 pub use iroh_base::{
     EndpointAddr, EndpointId, KeyParsingError, PublicKey, RelayUrl, RelayUrlParseError, SecretKey,
     Signature, SignatureError, TransportAddr,
