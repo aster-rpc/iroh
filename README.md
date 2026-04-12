@@ -1,3 +1,30 @@
+# iroh (aster-rpc fork)
+
+This fork tracks [upstream iroh](https://github.com/n0-computer/iroh) and contributes security fixes back. Fixes focus on panic safety, rate limiting, input validation, and denial-of-service surface reduction.
+
+## Contributions
+
+| PR | Area | Summary | Upstream |
+|----|------|---------|----------|
+| [#4099](https://github.com/n0-computer/iroh/pull/4099) | Security | Prevent integer overflow in duration, segment, and rate limiter | Pending |
+| [#4100](https://github.com/n0-computer/iroh/pull/4100) | Security | Return Result from Accepting::into_0rtt instead of panicking | Pending |
+| [#4101](https://github.com/n0-computer/iroh/pull/4101) | Security | Log RemoteStateActor panics instead of propagating them | Pending |
+| [#4102](https://github.com/n0-computer/iroh/pull/4102) | Security | Implement connection accept rate limiting on relay server | Pending |
+| [#4103](https://github.com/n0-computer/iroh/pull/4103) | Security | Cap max_incoming to 256 to limit half-open connection memory | Pending |
+| [#4104](https://github.com/n0-computer/iroh/pull/4104) | Security | Document trust model for relay-provided addresses | Pending |
+
+Additional fixes on this fork (not yet submitted upstream):
+
+| Branch | Area | Summary |
+|--------|------|---------|
+| `main` | FFI | Re-export noq::poll_driver for FFI consumers |
+
+---
+
+*Below is the original upstream README.*
+
+---
+
 <h1 align="center"><a href="https://iroh.computer"><img alt="iroh" src="./.img/iroh_wordmark.svg" width="100" /></a></h1>
 
 <h3 align="center">
