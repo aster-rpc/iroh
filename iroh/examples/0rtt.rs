@@ -146,7 +146,9 @@ async fn accept(_args: Args) -> Result<()> {
         while let Some(incoming) = endpoint.accept().await {
             tokio::spawn(async move {
                 let accepting = incoming.accept().anyerr()?;
-                let connection = accepting.into_0rtt();
+                let connection = accepting
+                    .into_0rtt()
+                    .expect("incoming connections can always be converted to 0-RTT");
                 let (mut send, mut recv) = connection.accept_bi().await.anyerr()?;
                 trace!("recv.is_0rtt: {}", recv.is_0rtt());
                 let data = recv.read_to_end(8).await.anyerr()?;
