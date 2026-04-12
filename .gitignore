@@ -2,3 +2,5 @@
 /logs
 iroh.config.toml
 /.patchbay
+
+docs/aster/
