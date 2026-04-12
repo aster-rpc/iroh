@@ -387,7 +387,10 @@ impl Server {
                     builder = builder.client_rx_ratelimit(cfg);
                 }
                 if let Some(limit) = relay_config.limits.accept_conn_limit {
-                    let burst = relay_config.limits.accept_conn_burst.unwrap_or(limit.ceil() as usize);
+                    let burst = relay_config
+                        .limits
+                        .accept_conn_burst
+                        .unwrap_or(limit.ceil() as usize);
                     builder = builder.accept_conn_ratelimit(limit, burst);
                 }
                 let http_addr = match relay_config.tls {
