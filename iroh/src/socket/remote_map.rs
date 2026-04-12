@@ -201,8 +201,10 @@ impl RemoteMap {
                 }
                 Err(err) => {
                     if err.is_panic() {
-                        error!("RemoteStateActor panicked. \
-                               This is a bug — please report it.");
+                        error!(
+                            "RemoteStateActor panicked. \
+                               This is a bug — please report it."
+                        );
                     } else {
                         error!("RemoteStateActor terminated unexpectedly: {err}");
                     }
