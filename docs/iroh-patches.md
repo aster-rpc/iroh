@@ -61,6 +61,7 @@ upstream tags are pushed to `aster-rpc/iroh`.
 | `5aa2363baf` | Pin Aster `noq` patches to rev `e968659c47057b18210a4a03dc2366c65fe8f654` instead of `branch = "main"` because fork `main` now mirrors upstream. |
 | `8a751a69f7` | Runs `cargo fmt` after the iroh rc1 patch port. |
 | `06bd1f5a90` | Updates `Cargo.lock` to resolve `noq`, `noq-proto`, and `noq-udp` from the Aster rc1 fork rev. |
+| `62a6fe93de` | Cherry-pick of `a4efd34a28`: ignore local `docs/aster/` internal notes. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh`:
 
