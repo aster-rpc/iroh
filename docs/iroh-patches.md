@@ -92,20 +92,23 @@ Validation completed in `/Users/emrul/dev/aster/iroh-blobs`:
 - `cargo test --all-features`
 
 `iroh-docs` is ported and published. Fork `main` mirrors upstream `main`
-(`fc89461`), and branch `upgrade/iroh-docs-v0.100` plus tag
-`aster-iroh-docs-v0.100.0` are pushed to `aster-rpc/iroh-docs`. The upgrade
-branch is based on `v0.100.0` (`bbb1981`):
+(`fc89461`), and branch `upgrade/iroh-docs-v0.100` plus tags
+`aster-iroh-docs-v0.100.0` and `aster-iroh-docs-v0.100.0-p1` are pushed to
+`aster-rpc/iroh-docs`. The upgrade branch is based on `v0.100.0` (`bbb1981`):
 
 | Commit | Purpose |
 |---:|---|
 | `7efdff0` | Cherry-pick of `81f3461`: add Aster `iroh` / `noq` `[patch.crates-io]` entries, updated to explicit rc1 revs. |
 | `87c1c00` | Ignore local `docs/aster/` internal notes. |
 | `5acb0f3` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
+| `4ae3eaf` | Emits `ContentReady` when received doc content is already present locally, with a regression test for the portal-sync retry path. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh-docs`:
 
 - `cargo fmt --check`
+- `cargo test sync_emits_content_ready_for_already_local_content -- --nocapture`
 - `cargo test --all-features`
+- `cargo clippy --all-features --tests -- -D warnings`
 
 `iroh-gossip` is ported and published. Fork `main` mirrors upstream `main`
 (`37dcb89`), and branch `upgrade/iroh-gossip-v0.100` plus tag
@@ -175,7 +178,8 @@ These patches affect code or dependency resolution needed by Aster.
 | 4 | `iroh` | `a6c4e1a2fc` | `iroh/src/lib.rs` | Re-exports `noq::poll_driver` as `iroh::poll_driver`. | Lets Aster FFI consumers access the poll driver through the iroh dependency instead of importing noq directly. | Low conflict risk, usually one export line near `pub use endpoint::{Endpoint, RelayMode};`. Requires the `noq` poll driver patch to exist first. |
 | 5 | `iroh-blobs` | `14a2286e` | `Cargo.toml` | Adds `[patch.crates-io]` entries for Aster `iroh`, `iroh-base`, `iroh-relay`, and `noq` forks so the crate resolves the same fork stack standalone. | Prevents dependency graph splits when testing or building `iroh-blobs` outside `aster-rpc-internal`. | Low conflict risk. Under the new branch model, pin to explicit Aster fork revs/tags; do not preserve stale `ed25519-dalek 3.0.0-pre.6` comments. |
 | 6 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. Pin to explicit Aster fork revs/tags; do not preserve stale pre.6 wording. |
-| 7 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
+| 7 | `iroh-docs` | `4ae3eaf` | `src/engine/live.rs`, `tests/sync.rs` | Emits `ContentReady` immediately when `start_download` sees `BlobStatus::Complete`, instead of silently returning. | `portal-sync` waits for `LiveEvent::ContentReady` to mark remotely advertised CAS content as usable/retryable even when the blob was preloaded through another path. | Medium conflict risk around `LiveActor::start_download`, `on_download_ready`, and content-ready propagation. Preserve the regression where the receiver preloads the blob, imports the doc, receives `InsertRemote { content_status: Complete }`, and still gets explicit `ContentReady`. |
+| 8 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
 
 ## Bookkeeping and documentation patches
 
@@ -267,8 +271,9 @@ git push origin main --force-with-lease
 git push origin --tags
 git switch -c upgrade/iroh-docs-v0.100 v0.100.0
 git cherry-pick -x 81f3461
-git tag -a aster-iroh-docs-v0.100.0 -m "Aster iroh-docs v0.100.0 fork"
-git push origin upgrade/iroh-docs-v0.100 aster-iroh-docs-v0.100.0
+git cherry-pick -x 4ae3eaf
+git tag -a aster-iroh-docs-v0.100.0-p1 -m "Aster iroh-docs v0.100.0 content-ready patch"
+git push origin upgrade/iroh-docs-v0.100 aster-iroh-docs-v0.100.0-p1
 
 cd /Users/emrul/dev/aster/iroh-gossip
 git fetch --all --tags --prune
