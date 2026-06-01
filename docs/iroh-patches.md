@@ -51,9 +51,12 @@ Validation completed in `/Users/emrul/dev/aster/noq`:
 - `cargo test -p noq --all-features`
 
 `iroh` is ported and published. Fork `main` mirrors upstream `main`
-(`ee8b6a3d93`), and branch `upgrade/iroh-v1.0.0-rc.1` plus tag
-`aster-iroh-v1.0.0-rc.1` are pushed to `aster-rpc/iroh`. The upgrade branch is
-based on `v1.0.0-rc.1` (`ee8b6a3d93`).
+(`ee8b6a3d93`), and branch `upgrade/iroh-v1.0.0-rc.1` plus tags
+`aster-iroh-v1.0.0-rc.1` and `aster-iroh-v1.0.0-rc.1-p1` are pushed to
+`aster-rpc/iroh`. The upgrade branch is based on `v1.0.0-rc.1`
+(`ee8b6a3d93`). The `-p1` tag is docs-only relative to the code tag and is the
+preferred local checkout tag when reading this patch ledger from a detached
+worktree.
 
 | Commit | Purpose |
 |---:|---|
@@ -63,6 +66,7 @@ based on `v1.0.0-rc.1` (`ee8b6a3d93`).
 | `8a751a69f7` | Runs `cargo fmt` after the iroh rc1 patch port. |
 | `06bd1f5a90` | Updates `Cargo.lock` to resolve `noq`, `noq-proto`, and `noq-udp` from the Aster rc1 fork rev. |
 | `62a6fe93de` | Cherry-pick of `a4efd34a28`: ignore local `docs/aster/` internal notes. |
+| `ae6c474ee5` | Records satellite rc1 fork ports and the iroh-docs content-ready patch in this patch ledger. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh`:
 
