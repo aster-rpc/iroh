@@ -50,9 +50,10 @@ Validation completed in `/Users/emrul/dev/aster/noq`:
 - `cargo test -p noq-proto --all-features`
 - `cargo test -p noq --all-features`
 
-`iroh` is locally ported on branch `upgrade/iroh-v1.0.0-rc.1`, based on
-`v1.0.0-rc.1` (`ee8b6a3d93`). Fork `main` mirrors upstream `main`, and
-upstream tags are pushed to `aster-rpc/iroh`.
+`iroh` is ported and published. Fork `main` mirrors upstream `main`
+(`ee8b6a3d93`), and branch `upgrade/iroh-v1.0.0-rc.1` plus tag
+`aster-iroh-v1.0.0-rc.1` are pushed to `aster-rpc/iroh`. The upgrade branch is
+based on `v1.0.0-rc.1` (`ee8b6a3d93`).
 
 | Commit | Purpose |
 |---:|---|
@@ -73,6 +74,54 @@ SIGSEGV in the lib test binary. The named reported tests passed individually,
 and the full package run passed with `--test-threads=1`; treat this as a
 threaded/local-interface upstream test-run issue to re-check before relying on
 the default command in CI.
+
+`iroh-blobs` is ported and published. Fork `main` mirrors upstream `main`
+(`099e7cfd`), and branch `upgrade/iroh-blobs-v0.102` plus tag
+`aster-iroh-blobs-v0.102.0` are pushed to `aster-rpc/iroh-blobs`. The upgrade
+branch is based on `v0.102.0` (`099e7cfd`):
+
+| Commit | Purpose |
+|---:|---|
+| `94964e8e` | Cherry-pick of `14a2286e`: add Aster `iroh` / `noq` `[patch.crates-io]` entries, updated to explicit rc1 revs. |
+| `39ad2947` | Ignore local `docs/aster/` internal notes. |
+| `c23a66ac` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
+
+Validation completed in `/Users/emrul/dev/aster/iroh-blobs`:
+
+- `cargo fmt --check`
+- `cargo test --all-features`
+
+`iroh-docs` is ported and published. Fork `main` mirrors upstream `main`
+(`fc89461`), and branch `upgrade/iroh-docs-v0.100` plus tag
+`aster-iroh-docs-v0.100.0` are pushed to `aster-rpc/iroh-docs`. The upgrade
+branch is based on `v0.100.0` (`bbb1981`):
+
+| Commit | Purpose |
+|---:|---|
+| `7efdff0` | Cherry-pick of `81f3461`: add Aster `iroh` / `noq` `[patch.crates-io]` entries, updated to explicit rc1 revs. |
+| `87c1c00` | Ignore local `docs/aster/` internal notes. |
+| `5acb0f3` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
+
+Validation completed in `/Users/emrul/dev/aster/iroh-docs`:
+
+- `cargo fmt --check`
+- `cargo test --all-features`
+
+`iroh-gossip` is ported and published. Fork `main` mirrors upstream `main`
+(`37dcb89`), and branch `upgrade/iroh-gossip-v0.100` plus tag
+`aster-iroh-gossip-v0.100.0` are pushed to `aster-rpc/iroh-gossip`. The upgrade
+branch is based on `v0.100.0` (`37dcb89`):
+
+| Commit | Purpose |
+|---:|---|
+| `511613f` | Cherry-pick of `14a76d5`: add Aster `iroh` / `noq` `[patch.crates-io]` entries, updated to explicit rc1 revs. |
+| `0bbff98` | Cherry-pick of `d7d1358`: ignore local `docs/aster/` internal notes. |
+| `fdecec8` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
+
+Validation completed in `/Users/emrul/dev/aster/iroh-gossip`:
+
+- `cargo fmt --check`
+- `cargo test --all-features`
 
 ## Branch and tag model
 
@@ -124,9 +173,9 @@ These patches affect code or dependency resolution needed by Aster.
 | 2 | `noq` | `00cd03857` | `noq/src/lib.rs`, `noq/src/poll_driver.rs` | Adds `noq::poll_driver`, a synchronous poll-based QUIC driver over `noq-proto` for FFI or foreign runtimes that do not want a Tokio-owned endpoint. | Intended for Go/Java/.NET/C ABI bridges and re-exported through `iroh` so downstream FFI code can depend on one public crate. | Very high conflict risk on every noq release because it touches sans-IO endpoint/connection public APIs. Port after `read_into`; re-check `ConnectionHandle`, `StreamId`, endpoint events, path events, and transmit APIs against the new noq-proto version. |
 | 3 | `iroh` | `7793d702a5` | `Cargo.toml` | Adds `[patch.crates-io]` entries for `noq`, `noq-udp`, and `noq-proto` pointing at `https://github.com/aster-rpc/noq`. | Ensures iroh builds against the Aster noq fork containing `read_into` and `poll_driver`. | Low conflict risk. Keep this until upstream noq contains equivalent APIs. Under the new branch model, pin this to an explicit Aster fork rev/tag; do not use floating `main`, because fork `main` mirrors upstream. |
 | 4 | `iroh` | `a6c4e1a2fc` | `iroh/src/lib.rs` | Re-exports `noq::poll_driver` as `iroh::poll_driver`. | Lets Aster FFI consumers access the poll driver through the iroh dependency instead of importing noq directly. | Low conflict risk, usually one export line near `pub use endpoint::{Endpoint, RelayMode};`. Requires the `noq` poll driver patch to exist first. |
-| 5 | `iroh-blobs` | `14a2286e` | `Cargo.toml` | Adds `[patch.crates-io]` entries for Aster `iroh`, `iroh-base`, `iroh-relay`, and `noq` forks so the crate resolves the same fork stack standalone. | Prevents dependency graph splits when testing or building `iroh-blobs` outside `aster-rpc-internal`. | Low conflict risk. Review whether the old comment about `ed25519-dalek 3.0.0-pre.6` is still accurate after the target release; update comments and version rationale as needed. |
-| 6 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. The current file now has `ed25519-dalek =3.0.0-pre.7`; do not blindly preserve stale pre.6 wording on future ports. |
-| 7 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Re-check comments and direct dependency versions after upstream `iroh@1.0.0-rc.1` or later. |
+| 5 | `iroh-blobs` | `14a2286e` | `Cargo.toml` | Adds `[patch.crates-io]` entries for Aster `iroh`, `iroh-base`, `iroh-relay`, and `noq` forks so the crate resolves the same fork stack standalone. | Prevents dependency graph splits when testing or building `iroh-blobs` outside `aster-rpc-internal`. | Low conflict risk. Under the new branch model, pin to explicit Aster fork revs/tags; do not preserve stale `ed25519-dalek 3.0.0-pre.6` comments. |
+| 6 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. Pin to explicit Aster fork revs/tags; do not preserve stale pre.6 wording. |
+| 7 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
 
 ## Bookkeeping and documentation patches
 
