@@ -318,6 +318,38 @@ noq-udp     = { git = "https://github.com/aster-rpc/noq",         rev = "<new no
 noq-proto   = { git = "https://github.com/aster-rpc/noq",         rev = "<new noq fork commit>" }
 ```
 
+## End-of-cycle local checkout alignment
+
+After publishing tags and updating Aster pins, switch the local fork worktrees
+to the final patched tags. This matters for downstream workspaces such as
+`portal-sync` that use `[patch.crates-io]` path overrides into
+`/Users/emrul/dev/aster`: Cargo resolves whatever those working trees have
+checked out, not the git revs pinned in `aster-rpc-internal`. Fork `main`
+intentionally mirrors upstream and will not contain Aster-only patches such as
+`noq::poll_driver`.
+
+For this rc1 cycle, the expected local checkouts are:
+
+```bash
+git -C /Users/emrul/dev/aster/iroh switch --detach aster-iroh-v1.0.0-rc.1-p1
+git -C /Users/emrul/dev/aster/noq switch --detach aster-noq-v1.0.0-rc.1
+git -C /Users/emrul/dev/aster/iroh-blobs switch --detach aster-iroh-blobs-v0.102.0
+git -C /Users/emrul/dev/aster/iroh-docs switch --detach aster-iroh-docs-v0.100.0-p1
+git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.100.0
+
+for repo in iroh noq iroh-blobs iroh-docs iroh-gossip; do
+  git -C "/Users/emrul/dev/aster/$repo" status --short --branch
+  git -C "/Users/emrul/dev/aster/$repo" tag --points-at HEAD
+done
+```
+
+Then run at least one path-override consumer check, for example:
+
+```bash
+cd /Users/emrul/dev/emrul/portal-sync
+cargo check --locked -p portal-cas
+```
+
 ## Aster validation after updating pins
 
 Run from `/Users/emrul/dev/aster/aster-rpc-internal`:
