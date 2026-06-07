@@ -22,8 +22,8 @@ Current `aster-rpc-internal` pins, at the time of this audit:
 | Repo | Aster fork commit/tag | Upstream base imported | New upstream target fetched | Stack range to inspect |
 |---|---:|---:|---:|---|
 | `iroh` | `77a68a5477` / `aster-iroh-v1.0.0-rc.0` | `v1.0.0-rc.0` (`96b4b0e80d`) | `v1.0.0-rc.1` (`ee8b6a3d93`) | `v1.0.0-rc.0..aster-iroh-v1.0.0-rc.0` |
-| `iroh-blobs` | `a0cbdd151e` / `fix/iroh-blobs-batch-small-reads` | `v0.102.0` (`099e7cfd`) | `v0.102.0` (`099e7cfd`) | `v0.102.0..fix/iroh-blobs-batch-small-reads` |
-| `iroh-docs` | `027467daa2` / `fix/bounded-sync-redrive` | `v0.100.0` (`bbb1981`) | `v0.100.0` (`bbb1981`) | `v0.100.0..fix/bounded-sync-redrive` |
+| `iroh-blobs` | `e20ff0292d` / `fix/iroh-blobs-batch-status` | `v0.102.0` (`099e7cfd`) | `v0.102.0` (`099e7cfd`) | `v0.102.0..fix/iroh-blobs-batch-status` |
+| `iroh-docs` | `de983790c8` / `fix/batched-content-download-scheduling` | `v0.100.0` (`bbb1981`) | `v0.100.0` (`bbb1981`) | `v0.100.0..fix/batched-content-download-scheduling` |
 | `iroh-gossip` | `d7d13582ba` / `aster-iroh-gossip-v0.99.0` | `v0.99.0` (`65b35eb`) | `v0.100.0` (`37dcb89`) | `v0.99.0..aster-iroh-gossip-v0.99.0` |
 | `noq` | `617899fe7e` / `aster-noq-v1.0.0-rc.0` | `noq-v1.0.0-rc.0` (`6ee7cf2f8`) | `noq-v1.0.0-rc.1` (`c80da2500`) | `noq-v1.0.0-rc.0..aster-noq-v1.0.0-rc.0` |
 
@@ -79,13 +79,13 @@ and the full package run passed with `--test-threads=1`; treat this as a
 threaded/local-interface upstream test-run issue to re-check before relying on
 the default command in CI.
 
-`iroh-blobs` is ported and published through `a0cbdd15`. Fork `main` mirrors
+`iroh-blobs` is ported and published through `e20ff029`. Fork `main` mirrors
 upstream `main` (`099e7cfd`), branch `upgrade/iroh-blobs-v0.102` is pushed to
 `aster-rpc/iroh-blobs`, and tag `aster-iroh-blobs-v0.102.0` marks the base rc1
-port. The batch read performance fix is also published on
-`fix/iroh-blobs-batch-small-reads` so future upstream ports can cherry-pick the
-fix branch/range directly. The upgrade branch is based on `v0.102.0`
-(`099e7cfd`):
+port. The batch read and batch status performance fixes are also published on
+`fix/iroh-blobs-batch-small-reads` and `fix/iroh-blobs-batch-status` so future
+upstream ports can cherry-pick the fix branches/ranges directly. The upgrade
+branch is based on `v0.102.0` (`099e7cfd`):
 
 | Commit | Purpose |
 |---:|---|
@@ -93,11 +93,13 @@ fix branch/range directly. The upgrade branch is based on `v0.102.0`
 | `39ad2947` | Ignore local `docs/aster/` internal notes. |
 | `c23a66ac` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
 | `a0cbdd15` | Adds `Blobs::get_bytes_many_if_complete`, with a batched fs-store inline read path and existing export fallback for non-inline complete blobs. |
+| `e20ff029` | Adds `Blobs::status_many`, with batched fs-store, mem-store, and readonly-mem status handling for complete/partial/missing blobs. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh-blobs`:
 
 - `cargo fmt --check`
 - `cargo test -p iroh-blobs test_get_bytes_many_if_complete -- --nocapture`
+- `cargo test -p iroh-blobs test_status_many -- --nocapture`
 - `cargo test --all-features`
 - `cargo clippy --all-features --tests -- -D warnings`
 
@@ -123,10 +125,13 @@ The large initial namespace fix is on `fix/large-namespace-initial-sync` at
 `14107686520394f1df0ffe08cb45c9ec7a229221`, carrying `e1f9340` and `1410768`
 on top of `2c8ab9b`. The bounded redrive follow-up is on
 `fix/bounded-sync-redrive` at `027467daa2e29cf18b68e074ab07289b9f45ee22`,
-carrying `027467d` on top of that large-namespace stack. `aster-rpc-internal`
-pins the bounded-redrive branch tip in `Cargo.toml`; the branch is pushed to
-`aster-rpc/iroh-docs` so Cargo can resolve the pinned rev from GitHub. The
-upgrade branch is based on `v0.100.0` (`bbb1981`):
+carrying `027467d` on top of that large-namespace stack. The batched content
+download scheduling follow-up is on `fix/batched-content-download-scheduling`
+at `de983790c850a4406416697d29d948f78b6210fa`, carrying `de98379` on top of
+the bounded-redrive stack. `aster-rpc-internal` pins that branch tip in
+`Cargo.toml`; the branch is pushed to `aster-rpc/iroh-docs` so Cargo can
+resolve the pinned rev from GitHub. The upgrade branch is based on `v0.100.0`
+(`bbb1981`):
 
 | Commit | Purpose |
 |---:|---|
@@ -138,6 +143,7 @@ upgrade branch is based on `v0.100.0` (`bbb1981`):
 | `e1f9340` | Adds a collected `Doc::get_many_vec` query path and protocol request so Aster can take full namespace snapshots without depending on the streaming query channel drain path. |
 | `1410768` | Makes docs subscription channels non-backpressuring, so a slow event subscriber cannot block the sync actor during large insert bursts. |
 | `027467d` | Bounds sync redrive to hashes already known missing for the namespace, avoiding a full namespace entry scan after every successful sync finish. |
+| `de98379` | Drains bursts of replica events and batches content-download status checks/scheduling by hash; also fixes queued-hash bookkeeping so concurrent downloads emit `ContentReady` per completed hash while reserving `PendingContentReady` for namespace queue drain. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh-docs`:
 
@@ -150,11 +156,15 @@ Validation completed in `/Users/emrul/dev/aster/iroh-docs`:
 - `cargo clippy --all-features --tests -- -D warnings`
 - `cargo test missing_hashes_are_tracked_per_namespace`
 - `cargo test sync_redrives_known_missing_content_after_resync`
-- `cargo clippy -- -D warnings`
+- `cargo test --test sync test_download_policies -- --nocapture`
+- `cargo clippy --all-features --tests -- -D warnings`
 - Portal H2 local-path validation:
-  `KEEP=1 RUSTC_WRAPPER= BASE=500 HIGH=1 PORTAL_SYNC_BLOB_FETCH_TIMEOUT_MS=5000 RUST_LOG=info,portal_sync_session=debug,portal_syncd::sync_supervisor=debug,iroh_docs=info scripts/phase5/sync/h-content/many-small.sh`
-  passed with 500 files converged on B, sampled content intact, and the 501-file
-  probe converged.
+  `RUSTC_WRAPPER= BASE=500 HIGH=1 PORTAL_SYNC_BLOB_FETCH_TIMEOUT_MS=5000 RUST_LOG=info,portal_sync_session=debug,portal_syncd::sync_supervisor=debug,iroh_docs=info scripts/phase5/sync/h-content/many-small.sh`
+  passed with 500 files converged on B after ~22s, sampled content intact, and
+  the 501-file probe converged. This validates correctness with the batching
+  patches, but does not materially improve the H2 wall-clock versus the prior
+  ~22s baseline; remaining time is likely outside this iroh-docs scheduling
+  round-trip path.
 
 `iroh-gossip` is ported and published. Fork `main` mirrors upstream `main`
 (`37dcb89`), and branch `upgrade/iroh-gossip-v0.100` plus tag
@@ -224,13 +234,15 @@ These patches affect code or dependency resolution needed by Aster.
 | 4 | `iroh` | `a6c4e1a2fc` | `iroh/src/lib.rs` | Re-exports `noq::poll_driver` as `iroh::poll_driver`. | Lets Aster FFI consumers access the poll driver through the iroh dependency instead of importing noq directly. | Low conflict risk, usually one export line near `pub use endpoint::{Endpoint, RelayMode};`. Requires the `noq` poll driver patch to exist first. |
 | 5 | `iroh-blobs` | `14a2286e` | `Cargo.toml` | Adds `[patch.crates-io]` entries for Aster `iroh`, `iroh-base`, `iroh-relay`, and `noq` forks so the crate resolves the same fork stack standalone. | Prevents dependency graph splits when testing or building `iroh-blobs` outside `aster-rpc-internal`. | Low conflict risk. Under the new branch model, pin to explicit Aster fork revs/tags; do not preserve stale `ed25519-dalek 3.0.0-pre.6` comments. |
 | 6 | `iroh-blobs` | `a0cbdd15` | `src/api/blobs.rs`, `src/api/proto.rs`, `src/store/fs.rs`, `src/store/fs/meta.rs`, `src/store/fs/meta/proto.rs`, `src/store/mem.rs`, `src/store/readonly_mem.rs` | Adds `Blobs::get_bytes_many_if_complete`, backed by a batched fs-store inline-data read command plus existing validated export fallback for non-inline complete blobs. | `aster_transport_core::CoreDoc::read_entry_contents_if_complete` exposes this to portal-cas, and `Manifest::read_snapshot` uses it to read all object/link value blobs with two batch calls instead of one status plus one read per entry. | Medium conflict risk around the blob store request enum and fs/meta actor command enums. Preserve response ordering, missing/partial as `None`, inline hash verification, and fallback through `get_bytes` for non-inline complete blobs. |
-| 7 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. Pin to explicit Aster fork revs/tags; do not preserve stale pre.6 wording. |
-| 8 | `iroh-docs` | `4ae3eaf` | `src/engine/live.rs`, `tests/sync.rs` | Emits `ContentReady` immediately when `start_download` sees `BlobStatus::Complete`, instead of silently returning. | `portal-sync` waits for `LiveEvent::ContentReady` to mark remotely advertised CAS content as usable/retryable even when the blob was preloaded through another path. | Medium conflict risk around `LiveActor::start_download`, `on_download_ready`, and content-ready propagation. Preserve the regression where the receiver preloads the blob, imports the doc, receives `InsertRemote { content_status: Complete }`, and still gets explicit `ContentReady`. |
-| 9 | `iroh-docs` | `2c8ab9b` | `src/engine/live.rs`, `tests/sync.rs` | After a successful sync round, scans local doc entries matching the download policy and re-queues missing content downloads from the synced peer before emitting `PendingContentReady`. | `portal-sync` can recover from the "entry replicated, content blob missing" state after a peer reconnects or stabilizes; repeated `start_sync` calls are enough to fetch content that was unavailable during the original insert event. | Medium conflict risk around `LiveActor::on_sync_finished`, `start_download`, and `PendingContentReady` ordering. Preserve the regression where an entry arrives with `ContentStatus::Missing`, the provider later stores the blob, a re-sync receives no new entries, and the receiver still gets `ContentReady` plus the blob locally. |
-| 10 | `iroh-docs` | `e1f9340` | `src/actor.rs`, `src/api.rs`, `src/api/actor.rs`, `src/api/protocol.rs`, `tests/sync.rs` | Adds a collected `get_many_vec` docs query path. This avoids depending on the streaming query channel drain path for large full-namespace snapshots. | Aster core uses `Doc::get_many_vec` for `query_key_exact`, `query_latest_exact`, `query_key_prefix`, and `query_latest_prefix`; portal-sync uses those wrappers during Tree snapshots. | Medium conflict risk around docs query RPC plumbing. Preserve the large read-import, peer-initiated sync regression where a namespace with many content-bearing entries can be queried to completion after sync. |
-| 11 | `iroh-docs` | `1410768` | `src/engine.rs` | Makes docs subscription channels non-backpressuring by using unbounded event channels for replica/live subscriptions. This prevents slow subscribers from blocking the sync actor during large insert bursts. | portal-sync owns a dedicated manifest-event watcher, but event fanout still must not backpressure iroh-docs sync/query progress for large namespaces. | Medium conflict risk around subscription/channel plumbing. If upstream changes event fanout, preserve the invariant that a stalled or slow subscriber cannot block docs sync actor progress. |
-| 12 | `iroh-docs` | `027467d` | `src/engine/live.rs` | Bounds `redrive_missing_content_for_peer` to hashes already tracked as missing for that namespace, instead of scanning every local entry after each successful sync. | Preserves reconnect recovery from the sync-redrive patch while avoiding O(namespace entries) CPU/blob-status work during portal-sync large namespace progress. | Medium conflict risk around missing-content tracking, `start_download`, and `on_download_ready`. Preserve namespace-scoped missing state, clear it on successful content completion, and emit `ContentReady` for every namespace waiting on the completed hash. |
-| 13 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
+| 7 | `iroh-blobs` | `e20ff029` | `src/api/blobs.rs`, `src/api/proto.rs`, `src/store/fs.rs`, `src/store/fs/meta.rs`, `src/store/fs/meta/proto.rs`, `src/store/mem.rs`, `src/store/readonly_mem.rs` | Adds `Blobs::status_many`, backed by batched store actor status handling for fs, mem, and readonly-mem stores. | `iroh-docs::LiveActor` uses it to batch local completeness checks while scheduling many content downloads from a RemoteInsert burst. | Medium conflict risk around the blob store request enum and fs/meta actor command enums. Preserve response ordering and exact single-`status` semantics for complete, partial, and missing blobs. |
+| 8 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. Pin to explicit Aster fork revs/tags; do not preserve stale pre.6 wording. |
+| 9 | `iroh-docs` | `4ae3eaf` | `src/engine/live.rs`, `tests/sync.rs` | Emits `ContentReady` immediately when `start_download` sees `BlobStatus::Complete`, instead of silently returning. | `portal-sync` waits for `LiveEvent::ContentReady` to mark remotely advertised CAS content as usable/retryable even when the blob was preloaded through another path. | Medium conflict risk around `LiveActor::start_download`, `on_download_ready`, and content-ready propagation. Preserve the regression where the receiver preloads the blob, imports the doc, receives `InsertRemote { content_status: Complete }`, and still gets explicit `ContentReady`. |
+| 10 | `iroh-docs` | `2c8ab9b` | `src/engine/live.rs`, `tests/sync.rs` | After a successful sync round, scans local doc entries matching the download policy and re-queues missing content downloads from the synced peer before emitting `PendingContentReady`. | `portal-sync` can recover from the "entry replicated, content blob missing" state after a peer reconnects or stabilizes; repeated `start_sync` calls are enough to fetch content that was unavailable during the original insert event. | Medium conflict risk around `LiveActor::on_sync_finished`, `start_download`, and `PendingContentReady` ordering. Preserve the regression where an entry arrives with `ContentStatus::Missing`, the provider later stores the blob, a re-sync receives no new entries, and the receiver still gets `ContentReady` plus the blob locally. |
+| 11 | `iroh-docs` | `e1f9340` | `src/actor.rs`, `src/api.rs`, `src/api/actor.rs`, `src/api/protocol.rs`, `tests/sync.rs` | Adds a collected `get_many_vec` docs query path. This avoids depending on the streaming query channel drain path for large full-namespace snapshots. | Aster core uses `Doc::get_many_vec` for `query_key_exact`, `query_latest_exact`, `query_key_prefix`, and `query_latest_prefix`; portal-sync uses those wrappers during Tree snapshots. | Medium conflict risk around docs query RPC plumbing. Preserve the large read-import, peer-initiated sync regression where a namespace with many content-bearing entries can be queried to completion after sync. |
+| 12 | `iroh-docs` | `1410768` | `src/engine.rs` | Makes docs subscription channels non-backpressuring by using unbounded event channels for replica/live subscriptions. This prevents slow subscribers from blocking the sync actor during large insert bursts. | portal-sync owns a dedicated manifest-event watcher, but event fanout still must not backpressure iroh-docs sync/query progress for large namespaces. | Medium conflict risk around subscription/channel plumbing. If upstream changes event fanout, preserve the invariant that a stalled or slow subscriber cannot block docs sync actor progress. |
+| 13 | `iroh-docs` | `027467d` | `src/engine/live.rs` | Bounds `redrive_missing_content_for_peer` to hashes already tracked as missing for that namespace, instead of scanning every local entry after each successful sync. | Preserves reconnect recovery from the sync-redrive patch while avoiding O(namespace entries) CPU/blob-status work during portal-sync large namespace progress. | Medium conflict risk around missing-content tracking, download scheduling, and `on_download_ready`. Preserve namespace-scoped missing state, clear it on successful content completion, and emit `ContentReady` for every namespace waiting on the completed hash. |
+| 14 | `iroh-docs` | `de98379` | `Cargo.toml`, `Cargo.lock`, `src/engine/live.rs` | Drains up to 1024 ready replica events per live-actor tick, groups content download candidates by hash, uses `Blobs::status_many`, and starts at most one downloader per missing hash. Also separates per-hash `ContentReady` emission from namespace-wide `PendingContentReady` when multiple downloads run concurrently. | Reduces per-entry blob-status actor round-trips during large RemoteInsert bursts without changing portal-cas data layout. | Medium conflict risk around `on_replica_event`, redrive, neighbor content-ready handling, queued hashes, and content-ready ordering. Preserve `test_download_policies`: concurrent downloads in one namespace must emit `ContentReady` for each completed hash, while `PendingContentReady` still waits for the namespace queue to drain. |
+| 15 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
 
 ## Bookkeeping and documentation patches
 
@@ -389,6 +401,13 @@ for repo in iroh noq iroh-blobs iroh-docs iroh-gossip; do
   git -C "/Users/emrul/dev/aster/$repo" tag --points-at HEAD
 done
 ```
+
+Note: after the latest performance work, `aster-rpc-internal` pins
+`iroh-blobs` to `e20ff0292d` (`fix/iroh-blobs-batch-status`) and `iroh-docs`
+to `de983790c8` (`fix/batched-content-download-scheduling`). Until replacement
+`aster-*` tags are cut, path-override consumers such as `portal-sync` should
+keep those local worktrees on the matching fix/upgrade branch tips when
+validating current Aster behavior.
 
 Then run at least one path-override consumer check, for example:
 
