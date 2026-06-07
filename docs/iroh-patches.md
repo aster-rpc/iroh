@@ -113,6 +113,16 @@ Downstream validation after wiring through `aster-rpc-internal` and
 - `cargo clippy -p aster_transport_core -p aster -- -D warnings`
 - `cargo clippy -p portal-cas -p portal-sync-session -- -D warnings`
 
+Follow-up perf triage on 2026-06-07 tested the hypothesis that H2's remaining
+small-file wall clock was caused by per-blob fs-store fsync in iroh-blobs. A
+local no-network `import_bao_bytes` probe disproved that for the H2 workload:
+500 x 128-byte blobs imported in ~31ms serial / ~11ms concurrent, while 500 x
+20KB above-inline blobs imported in ~3.1s serial / ~1.8s concurrent. The H2
+files are `fN\n`, below the inline threshold, so no iroh-blobs fs-store patch
+was added. The measured fix is downstream in `aster-rpc-internal` commit
+`e741e31`, which reuses a node-level blob `Downloader` instead of constructing
+one downloader actor and connection pool per hash.
+
 `iroh-docs` is ported and published through `aster-iroh-docs-v0.100.0-p2`.
 Fork `main` mirrors upstream `main` (`fc89461`), and branch
 `upgrade/iroh-docs-v0.100` plus tags `aster-iroh-docs-v0.100.0` and
