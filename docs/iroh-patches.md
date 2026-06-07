@@ -1,6 +1,6 @@
 # Aster iroh/noq fork patch inventory
 
-Last audited: 2026-06-01.
+Last audited: 2026-06-07.
 
 This file records the local Aster patch stack carried on the forked iroh
 dependency repos under `/Users/emrul/dev/aster`. Keep it current whenever an
@@ -95,10 +95,14 @@ Validation completed in `/Users/emrul/dev/aster/iroh-blobs`:
 - `cargo fmt --check`
 - `cargo test --all-features`
 
-`iroh-docs` is ported and published. Fork `main` mirrors upstream `main`
-(`fc89461`), and branch `upgrade/iroh-docs-v0.100` plus tags
-`aster-iroh-docs-v0.100.0` and `aster-iroh-docs-v0.100.0-p1` are pushed to
-`aster-rpc/iroh-docs`. The upgrade branch is based on `v0.100.0` (`bbb1981`):
+`iroh-docs` is ported and published through `aster-iroh-docs-v0.100.0-p2`.
+Fork `main` mirrors upstream `main` (`fc89461`), and branch
+`upgrade/iroh-docs-v0.100` plus tags `aster-iroh-docs-v0.100.0` and
+`aster-iroh-docs-v0.100.0-p1` / `aster-iroh-docs-v0.100.0-p2` are pushed to
+`aster-rpc/iroh-docs`. The `2c8ab9b` sync-recovery patch is also published on
+`fix/sync-redrive-missing-content-after-resync` so future upstream ports can
+cherry-pick the fix branch/range directly. The upgrade branch is based on
+`v0.100.0` (`bbb1981`):
 
 | Commit | Purpose |
 |---:|---|
@@ -106,11 +110,14 @@ Validation completed in `/Users/emrul/dev/aster/iroh-blobs`:
 | `87c1c00` | Ignore local `docs/aster/` internal notes. |
 | `5acb0f3` | Updates `Cargo.lock` to resolve Aster `iroh` / `noq` fork crates. |
 | `4ae3eaf` | Emits `ContentReady` when received doc content is already present locally, with a regression test for the portal-sync retry path. |
+| `2c8ab9b` | Re-drives missing entry-content downloads after a successful re-sync, so known entries whose blobs were unavailable during the first sync can recover after the provider comes back. |
 
 Validation completed in `/Users/emrul/dev/aster/iroh-docs`:
 
 - `cargo fmt --check`
 - `cargo test sync_emits_content_ready_for_already_local_content -- --nocapture`
+- `cargo test --test sync sync_redrives_known_missing_content_after_resync -- --nocapture`
+- `N_ENTRIES=2000 RUST_LOG=iroh_docs=info cargo test --test sync sync_gossip_bulk -- --nocapture`
 - `cargo test --all-features`
 - `cargo clippy --all-features --tests -- -D warnings`
 
@@ -183,7 +190,8 @@ These patches affect code or dependency resolution needed by Aster.
 | 5 | `iroh-blobs` | `14a2286e` | `Cargo.toml` | Adds `[patch.crates-io]` entries for Aster `iroh`, `iroh-base`, `iroh-relay`, and `noq` forks so the crate resolves the same fork stack standalone. | Prevents dependency graph splits when testing or building `iroh-blobs` outside `aster-rpc-internal`. | Low conflict risk. Under the new branch model, pin to explicit Aster fork revs/tags; do not preserve stale `ed25519-dalek 3.0.0-pre.6` comments. |
 | 6 | `iroh-docs` | `81f3461` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps docs sync tests and standalone builds on the same endpoint/base/noq fork stack as Aster. | Low conflict risk. Pin to explicit Aster fork revs/tags; do not preserve stale pre.6 wording. |
 | 7 | `iroh-docs` | `4ae3eaf` | `src/engine/live.rs`, `tests/sync.rs` | Emits `ContentReady` immediately when `start_download` sees `BlobStatus::Complete`, instead of silently returning. | `portal-sync` waits for `LiveEvent::ContentReady` to mark remotely advertised CAS content as usable/retryable even when the blob was preloaded through another path. | Medium conflict risk around `LiveActor::start_download`, `on_download_ready`, and content-ready propagation. Preserve the regression where the receiver preloads the blob, imports the doc, receives `InsertRemote { content_status: Complete }`, and still gets explicit `ContentReady`. |
-| 8 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
+| 8 | `iroh-docs` | `2c8ab9b` | `src/engine/live.rs`, `tests/sync.rs` | After a successful sync round, scans local doc entries matching the download policy and re-queues missing content downloads from the synced peer before emitting `PendingContentReady`. | `portal-sync` can recover from the "entry replicated, content blob missing" state after a peer reconnects or stabilizes; repeated `start_sync` calls are enough to fetch content that was unavailable during the original insert event. | Medium conflict risk around `LiveActor::on_sync_finished`, `start_download`, and `PendingContentReady` ordering. Preserve the regression where an entry arrives with `ContentStatus::Missing`, the provider later stores the blob, a re-sync receives no new entries, and the receiver still gets `ContentReady` plus the blob locally. |
+| 9 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
 
 ## Bookkeeping and documentation patches
 
