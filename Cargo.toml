@@ -43,6 +43,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)", "cfg(iroh_l
 unused-async = "warn"
 
 [patch.crates-io]
-noq = { git = "https://github.com/aster-rpc/noq", branch = "main" }
-noq-udp = { git = "https://github.com/aster-rpc/noq", branch = "main" }
-noq-proto = { git = "https://github.com/aster-rpc/noq", branch = "main" }
+noq = { git = "https://github.com/aster-rpc/noq", rev = "ddb8829dbc1cd401f8643ba9b93c542ffee43577" }
+noq-udp = { git = "https://github.com/aster-rpc/noq", rev = "ddb8829dbc1cd401f8643ba9b93c542ffee43577" }
+noq-proto = { git = "https://github.com/aster-rpc/noq", rev = "ddb8829dbc1cd401f8643ba9b93c542ffee43577" }
