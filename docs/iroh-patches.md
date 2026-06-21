@@ -269,6 +269,8 @@ upgrade attempt.
 3. Port `iroh-blobs`, `iroh-docs`, and `iroh-gossip` dependency patch blocks.
 4. Reapply optional fork docs/gitignore patches where useful.
 5. Update `aster-rpc-internal` root `[patch.crates-io]` revs to the new Aster fork commits.
+6. Regenerate the fork manifest and the "current pins" section of this ledger
+   (see [Updating the manifest after each cycle](#updating-the-manifest-after-each-cycle)).
 
 Prefer `git cherry-pick -x <commit>` for provenance. If a patch no longer
 applies cleanly, use the "Why / enabled behavior" and "Conflict notes" columns
@@ -466,6 +468,37 @@ Then run at least one path-override consumer check, for example:
 ```bash
 cd /Users/emrul/dev/emrul/portal-sync
 cargo check --locked -p portal-cas
+```
+
+## Updating the manifest after each cycle
+
+`docs/aster-fork-manifest.toml` is the machine-readable, consumer-facing list of
+what to pin (tags, commits, upstream bases, paste-ready Cargo snippets). It is
+**canonical in this repo** (`aster-rpc/iroh`); a synced copy lives at
+`aster-rpc-internal/iroh-fork-manifest.toml`. Both must be refreshed every
+upgrade cycle, after pins are flipped and validated, so consumers never pin a
+stale rev.
+
+After step 5 of [Reapply order](#reapply-order):
+
+1. Edit the canonical `docs/aster-fork-manifest.toml` here: bump `wave`,
+   `released`, every `[forks.*]` block (`upstream_base`, `tag`, `commit`,
+   `branch`, `crate_version`), the `[transitive]` pins, and the `[snippets]`
+   `version_specs` / `patch_crates_io` blocks. The `commit` values must equal
+   the revs pinned in `aster-rpc-internal/Cargo.toml` (pin == tag == commit).
+2. Update the "current pins" section at the top of this ledger to match.
+3. Validate it parses: `python3 -c "import tomllib,sys; tomllib.load(open('docs/aster-fork-manifest.toml','rb'))"`
+   (Python ≥ 3.11; otherwise `uv run python -c ...`).
+4. Commit on the `upgrade/<iroh-version>` branch (a docs-only commit, kept
+   *after* the `aster-*` tag so the tag stays code-only) and push.
+5. Sync the copy and commit it in `aster-rpc-internal`:
+   `cp docs/aster-fork-manifest.toml /Users/emrul/dev/aster/aster-rpc-internal/iroh-fork-manifest.toml`
+
+Consistency check (run from the `iroh` worktree on the upgrade branch):
+
+```bash
+diff <(git -C /Users/emrul/dev/aster/aster-rpc-internal show HEAD:iroh-fork-manifest.toml) \
+     docs/aster-fork-manifest.toml && echo "manifests in sync"
 ```
 
 ## Aster validation after updating pins
