@@ -1,6 +1,35 @@
 # Aster iroh/noq fork patch inventory
 
-Last audited: 2026-06-21.
+Last audited: 2026-07-01.
+
+## Windows UDP busy-loop fix (2026-07-01)
+
+Fixes the Aster/iroh endpoint busy-loop (~120% CPU + log flood, `recv error … os
+error 10054`) that develops on Windows when a peer/candidate becomes unreachable
+mid-session. Root-cause writeup and a deterministic repro live outside the fork at
+`/Users/emrul/dev/aster/portal-aster-busyloop-rootcause.md` and
+`/Users/emrul/dev/aster/tools/win-connreset-repro`.
+
+Each fix is an isolated, code-only commit on a `fix/windows-busy-loop` branch
+based on the **upstream release tag** (so it cherry-picks cleanly onto any future
+upstream base), then cherry-picked (`-x`) onto the live `upgrade/*` branch.
+
+| Repo | Fix branch (base) | Fix commit | On `upgrade/*` | What it does |
+|---|---|---|---|---|
+| `noq` | `fix/windows-busy-loop` (`noq-v1.0.0`) | `2678dcd69` | `d8daa2b18` | `UdpSocketState::new` disables `SIO_UDP_CONNRESET` (`WSAIoctl(…, FALSE)`) so a Windows UDP socket stops failing `recv` with `WSAECONNRESET`/os error 10054 after an ICMP "port unreachable". Root cause. |
+| `iroh` | `fix/windows-busy-loop` (`v1.0.0`) | `022676dabb` | `f0d154aca9` | `Transports::poll_recv` throttles the per-transport recv-error `warn!` (first, then 1/256, with a `count=` field; reset on any successful recv) via `should_log_recv_error` + `recv_error_log_tests`. Defence-in-depth. |
+
+Validation:
+
+- Windows 11 (`192.168.1.75`, rustc 1.96.0): deterministic repro returns 10054 on
+  every recv by default and `WouldBlock` once `SIO_UDP_CONNRESET` is disabled;
+  `cargo check -p noq-udp` compiles natively.
+- macOS: `cargo check -p noq-udp --target x86_64-pc-windows-msvc`, `cargo test -p
+  iroh --lib recv_error_log_tests`, clippy + fmt clean on both.
+
+To land: publish the `fix/windows-busy-loop` branches, cut new `aster-*` code
+tags at the `upgrade/*` tips, bump the `aster-rpc-internal` pins + fork manifest,
+then fold these rows into the "Functional patches" table below.
 
 ## 1.0 wave (2026-06-21) — current pins
 
