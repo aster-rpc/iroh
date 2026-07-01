@@ -48,6 +48,24 @@ pub(crate) use self::relay::{
 /// the error to noq, which will kill the endpoint driver then.
 const MAX_CONSECUTIVE_RECV_ERRORS: usize = 8;
 
+/// Throttle for the per-transport `poll_recv` error log.
+///
+/// A transport can keep returning the same error on every poll (for example a
+/// Windows UDP socket surfacing a sticky `WSAECONNRESET` after an ICMP "port
+/// unreachable"). Logging on every poll floods the log and churns disk I/O,
+/// which is itself a meaningful share of the CPU cost. We log the first error
+/// of a burst and then only once every `RECV_ERROR_LOG_INTERVAL` further
+/// errors, carrying a running count so a runaway is still visible.
+const RECV_ERROR_LOG_INTERVAL: u64 = 256;
+
+/// Whether the `count`-th consecutive recv error (1-based) should be logged.
+///
+/// Logs the first error of a burst, then one in every [`RECV_ERROR_LOG_INTERVAL`]
+/// thereafter, so a persistently-failing transport can't flood the log.
+fn should_log_recv_error(count: u64) -> bool {
+    count == 1 || (count != 0 && count.is_multiple_of(RECV_ERROR_LOG_INTERVAL))
+}
+
 /// Manages the different underlying data transports that the socket can support.
 #[derive(Debug)]
 pub(crate) struct Transports {
@@ -60,6 +78,9 @@ pub(crate) struct Transports {
     /// Cache for per-packet recv info, to speed up access
     recv_infos: [RecvInfo; noq_udp::BATCH_SIZE],
     consecutive_total_recv_failures: usize,
+    /// Number of consecutive `poll_recv` errors since the last successful recv,
+    /// used to throttle the recv-error log. Reset when any datagram is received.
+    recv_error_count: u64,
 }
 
 /// Combined watcher type for all ip transports
@@ -251,6 +272,7 @@ impl Transports {
             poll_recv_counter: Default::default(),
             recv_infos: Default::default(),
             consecutive_total_recv_failures: 0,
+            recv_error_count: 0,
         })
     }
 
@@ -301,6 +323,7 @@ impl Transports {
                     Poll::Ready(Ok(n)) => {
                         // Once a transport has data ready, we return directly.
                         self.consecutive_total_recv_failures = 0;
+                        self.recv_error_count = 0;
                         return Poll::Ready(Ok(n));
                     }
                     Poll::Ready(Err(err)) => {
@@ -309,7 +332,17 @@ impl Transports {
                         // where `poll_recv` would be called right away again and again even if
                         // the non-failing transports are all pending.
                         total_errors += 1;
-                        warn!(transport = $debug_label, "recv error: {err:#}");
+                        // Throttle logging: a transport can keep returning the same error on
+                        // every poll (e.g. a sticky Windows `WSAECONNRESET`). Logging each one
+                        // floods the log and churns disk I/O. Log the first, then periodically.
+                        self.recv_error_count = self.recv_error_count.saturating_add(1);
+                        if should_log_recv_error(self.recv_error_count) {
+                            warn!(
+                                transport = $debug_label,
+                                count = self.recv_error_count,
+                                "recv error: {err:#}"
+                            );
+                        }
                     }
                 }
             };
@@ -1342,5 +1375,29 @@ impl noq::UdpSender for Sender {
 
     fn max_transmit_segments(&self) -> NonZeroUsize {
         self.sender.max_transmit_segments
+    }
+}
+
+#[cfg(test)]
+mod recv_error_log_tests {
+    use super::{RECV_ERROR_LOG_INTERVAL, should_log_recv_error};
+
+    #[test]
+    fn throttles_persistent_recv_errors() {
+        // First error of a burst is always logged.
+        assert!(should_log_recv_error(1));
+        // The next errors up to the interval are suppressed.
+        assert!(!should_log_recv_error(2));
+        assert!(!should_log_recv_error(RECV_ERROR_LOG_INTERVAL - 1));
+        // Then one log per interval, keeping a runaway visible.
+        assert!(should_log_recv_error(RECV_ERROR_LOG_INTERVAL));
+        assert!(should_log_recv_error(RECV_ERROR_LOG_INTERVAL * 2));
+        assert!(!should_log_recv_error(RECV_ERROR_LOG_INTERVAL + 1));
+        // count == 0 means "no error", never logged.
+        assert!(!should_log_recv_error(0));
+
+        // Over a long burst, only ~1/interval of errors are logged (plus the first).
+        let logged = (1..=10_000).filter(|&c| should_log_recv_error(c)).count();
+        assert_eq!(logged, 1 + 10_000 / RECV_ERROR_LOG_INTERVAL as usize);
     }
 }
