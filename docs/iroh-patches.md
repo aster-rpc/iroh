@@ -39,12 +39,16 @@ Port notes:
 - `iroh-blobs` gained three post-tag commits on 2026-08-13 (functional patch row
   8 below): downloader progress observability, its monotonicity follow-up, and a
   test/contract tightening, released as crate version **0.103.1** and tagged `aster-iroh-blobs-v0.103.1`.
-  The crate version had to move: the Aster registry holds an immutable
-  `iroh-blobs 0.103.0` built from the pre-multifetch source, and
-  `publish-native-stack.py` skips an already-published version, so shipping the
-  patch under 0.103.0 would leave consumers without
-  `DownloadProgressItem::BytesTransferred` while the Aster source tree still
-  built through its root `[patch.crates-io]`. Upstream base stays `v0.103.0`. Canonical source branch is
+  Upstream base stays `v0.103.0`. The registry's immutable `iroh-blobs 0.103.0`
+  was published mid-development and is byte-identical to `1f01a087` (verified by
+  diffing the extracted `.crate` against each rev), so consumers already have the
+  multifetch progress work. The version bump is hygiene — the delta from that
+  archive to the tip is a doc comment plus a test assertion, no behavioural code
+  — restoring one-version-one-source-state. Do not yank 0.103.0.
+  Caution when reasoning about registry provenance: `publish-native-stack.py
+  check` clones the fork at the BOM rev and validates *that*, so it cannot detect
+  divergence between the BOM and what the registry actually serves. Extract the
+  published `.crate` and diff it. Canonical source branch is
   `feat/multifetch`, based on `v0.103.0`.
 - `aster-rpc-internal` bumped `iroh = "=1.0.1"` (exact-pin version spec must
   track the fork crate version) alongside the rev pins; `cargo update` pulled
