@@ -18,10 +18,10 @@ from the 1.0.0 wave.
 | Repo | Upstream base | Aster tag | Pinned fork commit | Branch |
 |---|---|---|---|---|
 | `noq` | `noq-v1.0.1` | `aster-noq-v1.0.1` | `c84091f4c1d62f3c9025e40014fc2db59f239ffc` | `upgrade/noq-v1.0.1` |
-| `iroh` | `v1.0.1` | `aster-iroh-v1.0.1` | `5228d64d91b10ef5f5bc9fcf8855b7774102cfc9` | `upgrade/iroh-v1.0.1` |
-| `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.1` | `7e0da6f72729a78cd01d4f7ebed776cc524a2ff5` | `upgrade/iroh-blobs-v0.103` |
-| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.0` | `2f3f3df834dfe6ce83f052c9c94ef80db2f5627c` | `upgrade/iroh-docs-v0.101` |
-| `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0` | `76492e4cf8a745cae27ea57fb8a30d42ab675498` | `upgrade/iroh-gossip-v0.101` |
+| `iroh` | `v1.0.1` | `aster-iroh-v1.0.1-p1` | `b15ae8071384f2643b46600ccfebbc2f4d36b6e9` | `upgrade/iroh-v1.0.1` |
+| `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.1-p1` | `dfac111c61946c970c5a98e79112957f94291bc3` | `upgrade/iroh-blobs-v0.103` |
+| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.0-p1` | `d9c091511de89a3e1310b23072804118822cebb6` | `upgrade/iroh-docs-v0.101` |
+| `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0-p1` | `5c021f998a172b81a69669e71786e14a339fa963` | `upgrade/iroh-gossip-v0.101` |
 
 Port notes:
 
@@ -50,6 +50,17 @@ Port notes:
   divergence between the BOM and what the registry actually serves. Extract the
   published `.crate` and diff it. Canonical source branch is
   `feat/multifetch`, based on `v0.103.0`.
+- All four iroh-family repos were swept on 2026-08-13 (`-p1` tags) so their own
+  `[patch.crates-io]` blocks resolve **Forgejo, at this wave's revisions**. They
+  had named the GitHub mirror at the 1.0.0-wave `iroh` (`3c329f0c`) and `noq`
+  (`ddb8829d`), with `iroh-docs` additionally on a pre-multifetch `iroh-blobs`.
+  Aster's product graph was never affected — its root `[patch.crates-io]`
+  overrides these — but each repo's *own* build and test suite compiled a stack
+  Aster does not ship, which is precisely where fork patches get validated.
+  These blocks reference other forks by revision, so a sweep must run in
+  dependency order (`noq` → `iroh` → `iroh-blobs` → `iroh-docs`/`iroh-gossip`)
+  and each repo's pin then moves. They touch no `src`, so no crate version
+  changes and nothing needs republishing.
 - `aster-rpc-internal` bumped `iroh = "=1.0.1"` (exact-pin version spec must
   track the fork crate version) alongside the rev pins; `cargo update` pulled
   transitive `netwatch`/`portmapper` 0.19.1 and `netdev` 0.45 per upstream's
@@ -67,9 +78,9 @@ End-of-cycle local worktree checkouts (for path-override consumers like
 git -C /Users/emrul/dev/aster/noq         switch --detach aster-noq-v1.0.1
 # iroh stays on upgrade/iroh-v1.0.1 (this ledger commit is one past the tag)
 git -C /Users/emrul/dev/aster/iroh        switch upgrade/iroh-v1.0.1
-git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.1
-git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.0
-git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0
+git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.1-p1
+git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.0-p1
+git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0-p1
 ```
 
 ## Historical: Windows UDP busy-loop fix (2026-07-01)
@@ -120,8 +131,8 @@ the tag stays code-only.
 | `noq` | `noq-v1.0.0` | `aster-noq-v1.0.0` | `ddb8829dbc1cd401f8643ba9b93c542ffee43577` | `upgrade/noq-v1.0.0` |
 | `iroh` | `v1.0.0` | `aster-iroh-v1.0.0` | `3c329f0c350b98a772bccdf697bfcc519fcdf25a` | `upgrade/iroh-v1.0.0` |
 | `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.0` | `60d098c99d6a759b5b1bf0df635b149b50c74775` | `upgrade/iroh-blobs-v0.103` |
-| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.0` | `2f3f3df834dfe6ce83f052c9c94ef80db2f5627c` | `upgrade/iroh-docs-v0.101` |
-| `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0` | `76492e4cf8a745cae27ea57fb8a30d42ab675498` | `upgrade/iroh-gossip-v0.101` |
+| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.0-p1` | `d9c091511de89a3e1310b23072804118822cebb6` | `upgrade/iroh-docs-v0.101` |
+| `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0-p1` | `5c021f998a172b81a69669e71786e14a339fa963` | `upgrade/iroh-gossip-v0.101` |
 
 Patch stacks carried forward unchanged from the rc.1 cycle (all cherry-picked
 clean except `iroh-blobs`/`iroh-docs` Cargo.lock regen and a trailing-EOF
@@ -139,8 +150,8 @@ End-of-cycle local worktree checkouts (for path-override consumers like
 git -C /Users/emrul/dev/aster/noq         switch --detach aster-noq-v1.0.0
 git -C /Users/emrul/dev/aster/iroh        switch --detach aster-iroh-v1.0.0
 git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.0
-git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.0
-git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0
+git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.0-p1
+git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0-p1
 ```
 
 (Note: the `iroh` worktree must stay on `upgrade/iroh-v1.0.0` if you want this
