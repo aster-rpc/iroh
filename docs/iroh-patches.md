@@ -54,7 +54,10 @@ Port notes:
   `fix/syncfinish` remains the upstream-based source commit, while
   `6d13844` is its provenance-preserving release cherry-pick. The composed
   release is versioned as **0.101.1** at `6c011608` and tagged
-  `aster-iroh-docs-v0.101.1`.
+  `aster-iroh-docs-v0.101.1`. An upstream audit on 2026-08-14 found
+  `upstream/main` at `ad80e691`; its `PeerState::start_connect` still queues
+  only `SyncReason::SyncReport`, so row 16 has not been applied upstream.
+  Re-audit that branch before carrying row 16 into the next release line.
 - All four iroh-family repos were swept on 2026-08-13 (`-p1` tags) so their own
   `[patch.crates-io]` blocks resolve **Forgejo, at this wave's revisions**. They
   had named the GitHub mirror at the 1.0.0-wave `iroh` (`3c329f0c`) and `noq`
