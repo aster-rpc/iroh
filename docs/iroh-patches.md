@@ -1,6 +1,6 @@
 # Aster iroh/noq fork patch inventory
 
-Last audited: 2026-08-13.
+Last audited: 2026-08-14.
 
 ## 1.0.1 wave (2026-07-02) — current pins
 
@@ -20,7 +20,7 @@ from the 1.0.0 wave.
 | `noq` | `noq-v1.0.1` | `aster-noq-v1.0.1` | `c84091f4c1d62f3c9025e40014fc2db59f239ffc` | `upgrade/noq-v1.0.1` |
 | `iroh` | `v1.0.1` | `aster-iroh-v1.0.1-p1` | `b15ae8071384f2643b46600ccfebbc2f4d36b6e9` | `upgrade/iroh-v1.0.1` |
 | `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.1-p1` | `dfac111c61946c970c5a98e79112957f94291bc3` | `upgrade/iroh-blobs-v0.103` |
-| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.0-p1` | `d9c091511de89a3e1310b23072804118822cebb6` | `upgrade/iroh-docs-v0.101` |
+| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.1` | `6c011608b3781bc8738103dcfb5f56f9f6f4efb8` | `upgrade/iroh-docs-v0.101` |
 | `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0-p1` | `5c021f998a172b81a69669e71786e14a339fa963` | `upgrade/iroh-gossip-v0.101` |
 
 Port notes:
@@ -50,6 +50,11 @@ Port notes:
   divergence between the BOM and what the registry actually serves. Extract the
   published `.crate` and diff it. Canonical source branch is
   `feat/multifetch`, based on `v0.103.0`.
+- `iroh-docs` gained the startup reconciliation patch in functional row 16:
+  `fix/syncfinish` remains the upstream-based source commit, while
+  `6d13844` is its provenance-preserving release cherry-pick. The composed
+  release is versioned as **0.101.1** at `6c011608` and tagged
+  `aster-iroh-docs-v0.101.1`.
 - All four iroh-family repos were swept on 2026-08-13 (`-p1` tags) so their own
   `[patch.crates-io]` blocks resolve **Forgejo, at this wave's revisions**. They
   had named the GitHub mirror at the 1.0.0-wave `iroh` (`3c329f0c`) and `noq`
@@ -71,6 +76,13 @@ Validation: per-fork fmt/clippy(-D warnings, --all-features --tests)/tests
 `aster_transport_core` (242) + `aster --all-features` (94) Rust tests, PyO3
 clippy clean, `maturin develop` + 1117 Python tests.
 
+The 2026-08-14 iroh-docs addition passed its 98-test release suite (3 ignored),
+the native-stack source/package audit, Aster package checks and clippy, and a
+clean `v0.3.20` candidate run of 612 workspace tests (8 ignored). One aggregate
+run hit the pre-existing timing assertion in
+`swarm_converges_with_sealed_grant_distribution`; the exact test then passed
+six consecutive all-feature runs and the final aggregate run passed.
+
 End-of-cycle local worktree checkouts (for path-override consumers like
 `portal-sync`):
 
@@ -79,7 +91,7 @@ git -C /Users/emrul/dev/aster/noq         switch --detach aster-noq-v1.0.1
 # iroh stays on upgrade/iroh-v1.0.1 (this ledger commit is one past the tag)
 git -C /Users/emrul/dev/aster/iroh        switch upgrade/iroh-v1.0.1
 git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.1-p1
-git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.0-p1
+git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.1
 git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0-p1
 ```
 
@@ -413,7 +425,8 @@ These patches affect code or dependency resolution needed by Aster.
 | 13 | `iroh-docs` | `1410768` | `src/engine.rs` | Makes docs subscription channels non-backpressuring by using unbounded event channels for replica/live subscriptions. This prevents slow subscribers from blocking the sync actor during large insert bursts. | portal-sync owns a dedicated manifest-event watcher, but event fanout still must not backpressure iroh-docs sync/query progress for large namespaces. | Medium conflict risk around subscription/channel plumbing. If upstream changes event fanout, preserve the invariant that a stalled or slow subscriber cannot block docs sync actor progress. |
 | 14 | `iroh-docs` | `027467d` | `src/engine/live.rs` | Bounds `redrive_missing_content_for_peer` to hashes already tracked as missing for that namespace, instead of scanning every local entry after each successful sync. | Preserves reconnect recovery from the sync-redrive patch while avoiding O(namespace entries) CPU/blob-status work during portal-sync large namespace progress. | Medium conflict risk around missing-content tracking, download scheduling, and `on_download_ready`. Preserve namespace-scoped missing state, clear it on successful content completion, and emit `ContentReady` for every namespace waiting on the completed hash. |
 | 15 | `iroh-docs` | `de98379` | `Cargo.toml`, `Cargo.lock`, `src/engine/live.rs` | Drains up to 1024 ready replica events per live-actor tick, groups content download candidates by hash, uses `Blobs::status_many`, and starts at most one downloader per missing hash. Also separates per-hash `ContentReady` emission from namespace-wide `PendingContentReady` when multiple downloads run concurrently. | Reduces per-entry blob-status actor round-trips during large RemoteInsert bursts without changing portal-cas data layout. | Medium conflict risk around `on_replica_event`, redrive, neighbor content-ready handling, queued hashes, and content-ready ordering. Preserve `test_download_policies`: concurrent downloads in one namespace must emit `ContentReady` for each completed hash, while `PendingContentReady` still waits for the namespace queue to drain. |
-| 16 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
+| 16 | `iroh-docs` | `cabe333b20` (`fix/syncfinish`) / `6d13844` (on `upgrade/iroh-docs-v0.101`) | `src/engine/state.rs` | Queues one follow-up reconciliation when a `NewNeighbor` sync request races an already-running sync, matching the existing `SyncReport` behavior. | Prevents portal-sync's startup `DirectJoin` from consuming the only reconciliation opportunity before gossip becomes ready, which could leave a post-join publish absent indefinitely. | Low conflict risk in the per-peer sync state machine. Canonical source is `fix/syncfinish`, based directly on `v0.101.0`. Preserve the regression that `NewNeighbor` during `DirectJoin` sets `resync_requested`; keep this separate from any future `Event::Lagged` anti-entropy behavior. |
+| 17 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
 
 ## Bookkeeping and documentation patches
 
