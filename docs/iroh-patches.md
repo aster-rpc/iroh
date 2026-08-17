@@ -20,7 +20,7 @@ from the 1.0.0 wave.
 | `noq` | `noq-v1.0.1` | `aster-noq-v1.0.1` | `c84091f4c1d62f3c9025e40014fc2db59f239ffc` | `upgrade/noq-v1.0.1` |
 | `iroh` | `v1.0.1` | `aster-iroh-v1.0.1-p1` | `b15ae8071384f2643b46600ccfebbc2f4d36b6e9` | `upgrade/iroh-v1.0.1` |
 | `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.1-p1` | `dfac111c61946c970c5a98e79112957f94291bc3` | `upgrade/iroh-blobs-v0.103` |
-| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.1` | `6c011608b3781bc8738103dcfb5f56f9f6f4efb8` | `upgrade/iroh-docs-v0.101` |
+| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.2` | `c19874270cc411f351653dd7631a1f3dc1ce9b4b` | `upgrade/iroh-docs-v0.101` |
 | `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0-p1` | `5c021f998a172b81a69669e71786e14a339fa963` | `upgrade/iroh-gossip-v0.101` |
 
 Port notes:
@@ -50,6 +50,43 @@ Port notes:
   divergence between the BOM and what the registry actually serves. Extract the
   published `.crate` and diff it. Canonical source branch is
   `feat/multifetch`, based on `v0.103.0`.
+- `iroh-docs` was released as **0.101.2** at `c1987427` and tagged
+  `aster-iroh-docs-v0.101.2`, carrying three patches over 0.101.1: the
+  write-authority retirement facade (row 19), the replica-event backpressure
+  fix (row 18) and the redrive-test correction (row 20). Upstream base stays
+  `v0.101.0`.
+
+  Two of the three are corrections to defects 0.101.1 introduced and shipped,
+  both found by taking that release's one known "flaky test" seriously instead
+  of quarantining it. Neither was ambient: each bisects to a specific Aster
+  patch in this same release line.
+
+  Row 18 closes what portal-sync tracked as OI-015. That was recorded as a
+  release-gate flake; it is not one.
+  `sync_large_read_import_after_peer_initiated_race` stalled at **exactly 1027
+  of 2000** events on three independent runs and then sat until the 60s timeout,
+  while a passing run finished in 2.7s. An identical stall count across runs is
+  not a race — it is the `bounded(1024)` channel filling. With the channel
+  unbounded the test passes 6/6 at ~2.7s. Note the test has been failing since
+  it was written and reproduces on the released 0.101.1, so 0.101.1 ships this
+  stall.
+
+  A second failure surfaced during that work and is fixed as row 20.
+  `sync_redrives_known_missing_content_after_resync` was failing about one run
+  in five, and it is a **stale test rather than a defect**: row 16 added a
+  second `SyncFinished` and the test, written two months earlier, asserts an
+  exact event set with an origin-blind matcher. Bisected to row 16 directly —
+  20/20 pass at `6d13844^`, 9 failures in 40 after it — so like row 18 it is a
+  regression the 0.101.1 release shipped rather than an ambient flake.
+
+  The 0.101.2 suite is green: 103 passed, 3 ignored (the pre-existing
+  `#[ignore = "flaky"]` cases), 0 failed. Both corrections were verified by
+  repetition rather than a single run — row 18's regression passes 6/6 where it
+  managed 1/4 before, and row 20's passes 177/180, the three failures confined
+  to one batch whose binary was rebuilt mid-measurement, with 120 subsequent
+  runs on settled binaries clean. Repeat-run these two specifically after any
+  future port; a single green run says almost nothing about either.
+
 - `iroh-docs` gained the startup reconciliation patch in functional row 16:
   `fix/syncfinish` remains the upstream-based source commit, while
   `6d13844` is its provenance-preserving release cherry-pick. The composed
@@ -94,7 +131,7 @@ git -C /Users/emrul/dev/aster/noq         switch --detach aster-noq-v1.0.1
 # iroh stays on upgrade/iroh-v1.0.1 (this ledger commit is one past the tag)
 git -C /Users/emrul/dev/aster/iroh        switch upgrade/iroh-v1.0.1
 git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.1-p1
-git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.1
+git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.2
 git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0-p1
 ```
 
@@ -430,6 +467,9 @@ These patches affect code or dependency resolution needed by Aster.
 | 15 | `iroh-docs` | `de98379` | `Cargo.toml`, `Cargo.lock`, `src/engine/live.rs` | Drains up to 1024 ready replica events per live-actor tick, groups content download candidates by hash, uses `Blobs::status_many`, and starts at most one downloader per missing hash. Also separates per-hash `ContentReady` emission from namespace-wide `PendingContentReady` when multiple downloads run concurrently. | Reduces per-entry blob-status actor round-trips during large RemoteInsert bursts without changing portal-cas data layout. | Medium conflict risk around `on_replica_event`, redrive, neighbor content-ready handling, queued hashes, and content-ready ordering. Preserve `test_download_policies`: concurrent downloads in one namespace must emit `ContentReady` for each completed hash, while `PendingContentReady` still waits for the namespace queue to drain. |
 | 16 | `iroh-docs` | `cabe333b20` (`fix/syncfinish`) / `6d13844` (on `upgrade/iroh-docs-v0.101`) | `src/engine/state.rs` | Queues one follow-up reconciliation when a `NewNeighbor` sync request races an already-running sync, matching the existing `SyncReport` behavior. | Prevents portal-sync's startup `DirectJoin` from consuming the only reconciliation opportunity before gossip becomes ready, which could leave a post-join publish absent indefinitely. | Low conflict risk in the per-peer sync state machine. Canonical source is `fix/syncfinish`, based directly on `v0.101.0`. Preserve the regression that `NewNeighbor` during `DirectJoin` sets `resync_requested`; keep this separate from any future `Event::Lagged` anti-entropy behavior. |
 | 17 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
+| 20 | `iroh-docs` | `f4fd12a` (integration branch only — see note) | `tests/sync.rs` | Admits the follow-up reconciliation queued by row 16 as an *optional* extra `SyncFinished` in `sync_redrives_known_missing_content_after_resync`, matched precisely: origin `Connect(Resync)` with zero entries received and zero sent. | Row 16 changed the observable event sequence and this test, written two months earlier, still asserted an exact event set with an origin-blind `match_sync_finished`. It failed ~1 run in 5 and 0.101.1 shipped it. | Low conflict risk. **Has no upstream-tag-based topic branch**, deliberately: it needs both row 14's test, which is an Aster addition, and row 16's behaviour, and those coexist only on the integration branch. If row 16 is ever ported, port this with it. Keep the match narrow — tolerating *any* surplus `SyncFinished` would also absorb a regression where the first sync failed to transfer what it reported. |
+| 19 | `iroh-docs` | `d47957a` (`fix/capability-downgrade`) / `5976751` (on `upgrade/iroh-docs-v0.101`) | `src/actor.rs`, `src/api.rs`, `src/api/actor.rs`, `src/api/protocol.rs`, `src/store/fs.rs`, `src/sync.rs`, `tests/sync.rs` | Adds `DocsApi::retire_write_authority(doc_id)`, narrowing a namespace's stored capability from Write to Read **without deleting entries**, refusing with an outstanding-reference count while handles remain, and reporting the capability kind now stored rather than the one requested. | Aster exposes this as `Docs::retire_local_write_authority`; portal-sync needs a non-destructive Write-to-Read transition for its grant lifecycle, and neither importing Read (capability merge only upgrades) nor dropping the document (loses entries) can provide one. | Medium conflict risk in the replica open/capability path. Preserve all three properties together: entries survive, the narrowed capability is durable across restart, and a later write import widens again. This is local authority retirement, not cryptographic revocation — a peer holding the namespace secret still writes. |
+| 18 | `iroh-docs` | `2761364d` (`fix/replica-event-backpressure`) / `905d4bc` (on `upgrade/iroh-docs-v0.101`) | `src/engine/live.rs` | Makes the live actor's own replica-event channel unbounded. `Subscribers::send` delivers into it with a blocking `tx.send(..).await` executed **inside the sync actor**, so bounding it means a lagging subscriber stops the single actor servicing replica requests. | Completes row 13, which established this exact invariant for the subscription channels and missed this sibling. portal-sync's shape — one large granted Tree syncing beside a small policy namespace — is precisely the burst that overruns the bound. | Low conflict risk (one channel constructor). Preserve the invariant, not the line: bound work per tick via `MAX_REPLICA_EVENT_BATCH`, never the channel's capacity. `sync_large_read_import_after_peer_initiated_race` is the regression; it stalls at exactly 1027 of 2000 events when the channel is bounded. |
 
 ## Bookkeeping and documentation patches
 
