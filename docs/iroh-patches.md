@@ -20,7 +20,7 @@ from the 1.0.0 wave.
 | `noq` | `noq-v1.0.1` | `aster-noq-v1.0.1` | `c84091f4c1d62f3c9025e40014fc2db59f239ffc` | `upgrade/noq-v1.0.1` |
 | `iroh` | `v1.0.1` | `aster-iroh-v1.0.1-p1` | `b15ae8071384f2643b46600ccfebbc2f4d36b6e9` | `upgrade/iroh-v1.0.1` |
 | `iroh-blobs` | `v0.103.0` | `aster-iroh-blobs-v0.103.1-p1` | `dfac111c61946c970c5a98e79112957f94291bc3` | `upgrade/iroh-blobs-v0.103` |
-| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.2` | `c19874270cc411f351653dd7631a1f3dc1ce9b4b` | `upgrade/iroh-docs-v0.101` |
+| `iroh-docs` | `v0.101.0` | `aster-iroh-docs-v0.101.3` | `d80d7a6c612b96b5e58e9b888f63f83b74e947e1` | `upgrade/iroh-docs-v0.101` |
 | `iroh-gossip` | `v0.101.0` | `aster-iroh-gossip-v0.101.0-p1` | `5c021f998a172b81a69669e71786e14a339fa963` | `upgrade/iroh-gossip-v0.101` |
 
 Port notes:
@@ -50,11 +50,24 @@ Port notes:
   divergence between the BOM and what the registry actually serves. Extract the
   published `.crate` and diff it. Canonical source branch is
   `feat/multifetch`, based on `v0.103.0`.
-- `iroh-docs` was released as **0.101.2** at `c1987427` and tagged
-  `aster-iroh-docs-v0.101.2`, carrying three patches over 0.101.1: the
+- `iroh-docs` is released as **0.101.3** at `d80d7a6c` and tagged
+  `aster-iroh-docs-v0.101.3`. It carries four patches over 0.101.1: the
   write-authority retirement facade (row 19), the replica-event backpressure
-  fix (row 18) and the redrive-test correction (row 20). Upstream base stays
-  `v0.101.0`.
+  fix (row 18), the redrive-test correction (row 20) and a **public API
+  addition**, row 21. Upstream base stays `v0.101.0`. **Consume 0.101.3, not
+  0.101.2.**
+
+  Row 21 is the only public-surface change in this release: `SyncDetails` is
+  re-exported so the `Ok` type of the public `SyncEvent::result` field can be
+  named outside the crate, and two swapped doc comments on `SyncEvent` are
+  corrected. It adds no behaviour and changes no type — an existing public API
+  becomes nameable — but it is a surface change and is recorded as one rather
+  than folded into the test patch that needed it.
+
+  0.101.2 at `c1987427` was tagged and pushed to both remotes with a defective
+  row 20 (see below). The tag is left in place rather than force-moved — it is
+  public, and a moved tag is worse than a superseded one — so 0.101.2 exists as
+  a real but superseded release. It was never published to the registry.
 
   Two of the three are corrections to defects 0.101.1 introduced and shipped,
   both found by taking that release's one known "flaky test" seriously instead
@@ -79,13 +92,45 @@ Port notes:
   20/20 pass at `6d13844^`, 9 failures in 40 after it — so like row 18 it is a
   regression the 0.101.1 release shipped rather than an ambient flake.
 
-  The 0.101.2 suite is green: 103 passed, 3 ignored (the pre-existing
-  `#[ignore = "flaky"]` cases), 0 failed. Both corrections were verified by
-  repetition rather than a single run — row 18's regression passes 6/6 where it
-  managed 1/4 before, and row 20's passes 177/180, the three failures confined
-  to one batch whose binary was rebuilt mid-measurement, with 120 subsequent
-  runs on settled binaries clean. Repeat-run these two specifically after any
-  future port; a single green run says almost nothing about either.
+  **Row 20's first implementation was wrong, and 0.101.2 shipped it.** That is
+  why 0.101.3 exists. Admitting the resync as an *optional* matcher is not
+  enough: `assert_next_unordered_with_optionals` tries required matchers before
+  optional ones, so a required `match_sync_finished` broad enough to accept
+  `Connect(Resync)` consumes it whenever it arrives first and orphans the real
+  sync's event.
+
+  **A second attempt, partitioning completions by origin, was also wrong** and
+  never shipped. Excluding `Connect(Resync)` from the required matcher makes it
+  unsatisfiable in runs where only a resync completes, converting a 27.5%
+  mismatch rate into a 2.2% timeout rate — a rarer failure, not a fixed one.
+
+  **No such partition exists, which is the durable lesson.** Origin identifies
+  *why* a synchronisation started; it cannot establish ownership by an
+  artificial test phase, nor which completion caused the redrive, and either
+  origin may legitimately satisfy phase two. Entry counts do not separate them
+  either: a `DirectJoin` and a `Resync` that each reconciled nothing differ in
+  origin while sharing an entry-count shape, and a queued reconciliation may
+  itself carry entries an earlier snapshot missed. The shipped form therefore
+  asserts the *shape* of what must happen and inspects neither field.
+
+  **The measurement that cleared the first attempt was invalid, and that
+  matters more than the defect.** It repeated the single test in isolation
+  (`cargo test --test sync <name>`), which is close to the worst available
+  control: with nothing else on the machine the real sync almost always
+  finishes first, so the ordering that triggers the bug barely arises. A
+  four-figure pass count gathered under a condition that suppresses the failure
+  is not evidence. An earlier revision of this section claimed "120 clean
+  settled-binary runs" and called 0.101.2 reliably green; both claims were
+  false, and are retracted here rather than deleted.
+
+  **How to validate this test.** Run the whole `sync` suite, not the single
+  test — concurrency is the variable that matters — and rely primarily on the
+  deterministic unit tests, which pin every ordering in-process without timing.
+  Current evidence: 11 unit tests covering DirectJoin-only, Resync-only, both
+  orderings, a stale drain, a failed completion, an unrelated event, a
+  completion from another peer, and repeated completions in phase 1; plus
+  **110 consecutive full-suite runs under concurrency with zero failures**,
+  against 11 failures in 40 runs without row 20.
 
 - `iroh-docs` gained the startup reconciliation patch in functional row 16:
   `fix/syncfinish` remains the upstream-based source commit, while
@@ -131,7 +176,7 @@ git -C /Users/emrul/dev/aster/noq         switch --detach aster-noq-v1.0.1
 # iroh stays on upgrade/iroh-v1.0.1 (this ledger commit is one past the tag)
 git -C /Users/emrul/dev/aster/iroh        switch upgrade/iroh-v1.0.1
 git -C /Users/emrul/dev/aster/iroh-blobs  switch --detach aster-iroh-blobs-v0.103.1-p1
-git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.2
+git -C /Users/emrul/dev/aster/iroh-docs   switch --detach aster-iroh-docs-v0.101.3
 git -C /Users/emrul/dev/aster/iroh-gossip switch --detach aster-iroh-gossip-v0.101.0-p1
 ```
 
@@ -467,7 +512,8 @@ These patches affect code or dependency resolution needed by Aster.
 | 15 | `iroh-docs` | `de98379` | `Cargo.toml`, `Cargo.lock`, `src/engine/live.rs` | Drains up to 1024 ready replica events per live-actor tick, groups content download candidates by hash, uses `Blobs::status_many`, and starts at most one downloader per missing hash. Also separates per-hash `ContentReady` emission from namespace-wide `PendingContentReady` when multiple downloads run concurrently. | Reduces per-entry blob-status actor round-trips during large RemoteInsert bursts without changing portal-cas data layout. | Medium conflict risk around `on_replica_event`, redrive, neighbor content-ready handling, queued hashes, and content-ready ordering. Preserve `test_download_policies`: concurrent downloads in one namespace must emit `ContentReady` for each completed hash, while `PendingContentReady` still waits for the namespace queue to drain. |
 | 16 | `iroh-docs` | `cabe333b20` (`fix/syncfinish`) / `6d13844` (on `upgrade/iroh-docs-v0.101`) | `src/engine/state.rs` | Queues one follow-up reconciliation when a `NewNeighbor` sync request races an already-running sync, matching the existing `SyncReport` behavior. | Prevents portal-sync's startup `DirectJoin` from consuming the only reconciliation opportunity before gossip becomes ready, which could leave a post-join publish absent indefinitely. | Low conflict risk in the per-peer sync state machine. Canonical source is `fix/syncfinish`, based directly on `v0.101.0`. Preserve the regression that `NewNeighbor` during `DirectJoin` sets `resync_requested`; keep this separate from any future `Event::Lagged` anti-entropy behavior. |
 | 17 | `iroh-gossip` | `14a76d5` | `Cargo.toml` | Adds the same Aster fork `[patch.crates-io]` block for iroh/noq crates. | Keeps gossip builds on the Aster fork stack and avoids mixing crates.io iroh-base/noq with forked iroh. | Low conflict risk. Pin to explicit Aster fork revs/tags and re-check comments/direct dependency versions after each upstream release. |
-| 20 | `iroh-docs` | `f4fd12a` (integration branch only — see note) | `tests/sync.rs` | Admits the follow-up reconciliation queued by row 16 as an *optional* extra `SyncFinished` in `sync_redrives_known_missing_content_after_resync`, matched precisely: origin `Connect(Resync)` with zero entries received and zero sent. | Row 16 changed the observable event sequence and this test, written two months earlier, still asserted an exact event set with an origin-blind `match_sync_finished`. It failed ~1 run in 5 and 0.101.1 shipped it. | Low conflict risk. **Has no upstream-tag-based topic branch**, deliberately: it needs both row 14's test, which is an Aster addition, and row 16's behaviour, and those coexist only on the integration branch. If row 16 is ever ported, port this with it. Keep the match narrow — tolerating *any* surplus `SyncFinished` would also absorb a regression where the first sync failed to transfer what it reported. |
+| 21 | `iroh-docs` | `6fbe973` (integration branch only — see row 20) | `src/engine.rs`, `src/engine/live.rs` | **Public API addition.** Re-exports `SyncDetails`, the `Ok` type of the public `SyncEvent::result` field, which was previously unnameable outside the crate — a caller could read a completion's counts by inference but could not construct or annotate one. Also corrects `SyncEvent::finished`/`started`, whose doc comments were swapped, and documents what origin and entry counts do *not* establish. | Row 20's unit tests construct synthetic completions and cannot be written without a nameable `SyncDetails`. | Low conflict risk. Adds no behaviour and changes no type — it makes an existing public API nameable. If upstream adds the same re-export, this row drops out cleanly. |
+| 20 | `iroh-docs` | `6523891` (integration branch only — see note) | `tests/sync.rs` | Replaces the exact-completion multiset in `sync_redrives_known_missing_content_after_resync` with a semantic event collector. Phase 1 requires a neighbour, the missing-content entry, at least one successful completion and a drain, tolerating further completions in any position rather than consuming a single-use slot. Phase 2 is an ordered state machine — completion, then the expected content, then the drain — in which a drain seen before the content belongs to the previous cycle and resets the wait. Failed completions, completions from another peer, and unrelated events remain errors. | Row 16 changed the observable event sequence; this test, written two months earlier, asserted an exact event set with an origin-blind matcher. It failed ~1 run in 5 and 0.101.1 shipped it. | Low conflict risk. **Has no upstream-tag-based topic branch**, deliberately: it needs both row 14's test, an Aster addition, and row 16's behaviour, and those coexist only on the integration branch. If row 16 is ever ported, port this with it. **Do not reintroduce a partition of completions by origin or entry count** — see the release note; no such partition exists, and two attempts at one shipped or nearly shipped defects. |
 | 19 | `iroh-docs` | `d47957a` (`fix/capability-downgrade`) / `5976751` (on `upgrade/iroh-docs-v0.101`) | `src/actor.rs`, `src/api.rs`, `src/api/actor.rs`, `src/api/protocol.rs`, `src/store/fs.rs`, `src/sync.rs`, `tests/sync.rs` | Adds `DocsApi::retire_write_authority(doc_id)`, narrowing a namespace's stored capability from Write to Read **without deleting entries**, refusing with an outstanding-reference count while handles remain, and reporting the capability kind now stored rather than the one requested. | Aster exposes this as `Docs::retire_local_write_authority`; portal-sync needs a non-destructive Write-to-Read transition for its grant lifecycle, and neither importing Read (capability merge only upgrades) nor dropping the document (loses entries) can provide one. | Medium conflict risk in the replica open/capability path. Preserve all three properties together: entries survive, the narrowed capability is durable across restart, and a later write import widens again. This is local authority retirement, not cryptographic revocation — a peer holding the namespace secret still writes. |
 | 18 | `iroh-docs` | `2761364d` (`fix/replica-event-backpressure`) / `905d4bc` (on `upgrade/iroh-docs-v0.101`) | `src/engine/live.rs` | Makes the live actor's own replica-event channel unbounded. `Subscribers::send` delivers into it with a blocking `tx.send(..).await` executed **inside the sync actor**, so bounding it means a lagging subscriber stops the single actor servicing replica requests. | Completes row 13, which established this exact invariant for the subscription channels and missed this sibling. portal-sync's shape — one large granted Tree syncing beside a small policy namespace — is precisely the burst that overruns the bound. | Low conflict risk (one channel constructor). Preserve the invariant, not the line: bound work per tick via `MAX_REPLICA_EVENT_BATCH`, never the channel's capacity. `sync_large_read_import_after_peer_initiated_race` is the regression; it stalls at exactly 1027 of 2000 events when the channel is bounded. |
 
